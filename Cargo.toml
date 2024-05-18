@@ -1,0 +1,13 @@
+[package]
+name = "server-monitor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+dotenvy = "0.15"
+reqwest = "0.12"
+teloxide = { version = "0.12", features = ["macros"] }
+tokio = { version = "1.8", features = ["rt-multi-thread", "macros", "full"] }
+futures = "0.3.30"
+chrono = "0.4.38"
