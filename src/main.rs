@@ -53,9 +53,7 @@ async fn main() {
 
         for result in results {
             match result {
-                Ok(_) => {
-                    println!("Ok");
-                }
+                Ok(_) => {}
                 Err(e) => eprintln!("Error: {}", e),
             }
         }
