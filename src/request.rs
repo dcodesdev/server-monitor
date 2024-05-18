@@ -17,7 +17,7 @@ pub async fn check_status<'a>(url: &str, bot: &'a Bot, db: Arc<Mutex<Db>>) -> an
         // If the previous one was "Down" and now it is "Up", then notify it is up again.
         if endpoint.status == Status::Down {
             notify::notify(&NotifyOpts {
-                message: format!("{} is up again!", url),
+                message: format!("✅ {} is up again!", url),
                 bot,
             })
             .await?;
@@ -30,7 +30,7 @@ pub async fn check_status<'a>(url: &str, bot: &'a Bot, db: Arc<Mutex<Db>>) -> an
     // If it is already set as Down, then don't notify.
     if endpoint.status != Status::Down {
         notify::notify(&NotifyOpts {
-            message: format!("{} is down!", url),
+            message: format!("❌ {} is down!", url),
             bot,
         })
         .await?;

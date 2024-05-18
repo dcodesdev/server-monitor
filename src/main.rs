@@ -32,7 +32,7 @@ async fn main() {
     let bot = Arc::new(create_bot());
     let db = Arc::new(Mutex::new(Db::new()));
 
-    println!("\n\nServer monitor is running with the following settings:");
+    println!("Server monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);
 
     loop {
