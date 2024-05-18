@@ -32,6 +32,20 @@ INTERVAL=5000
 cargo run --release
 ```
 
+## Docker
+
+Run the following command to run on Docker:
+
+```bash
+docker run -d \
+  --name server-monitor \
+  -e URLS=https://example1.com,https://example2.com \
+  -e TELOXIDE_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11 \
+  -e TELEGRAM_CHAT_ID=1234567890 \
+  -e INTERVAL=5000 \
+  server-monitor
+```
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
