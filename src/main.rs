@@ -8,7 +8,6 @@ use db::Db;
 use futures::future;
 use request::check_status;
 use std::sync::Arc;
-use std::thread;
 use tokio::sync::Mutex;
 
 /// In ms
@@ -47,6 +46,6 @@ async fn main() {
         }
 
         future::join_all(handles).await;
-        thread::sleep(std::time::Duration::from_millis(interval));
+        tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
     }
 }
