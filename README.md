@@ -43,7 +43,7 @@ docker run -d \
   -e TELOXIDE_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11 \
   -e TELEGRAM_CHAT_ID=1234567890 \
   -e INTERVAL=5000 \
-  server-monitor
+  ghcr.io/dcodesdev/server-monitor
 ```
 
 ## Contributing
