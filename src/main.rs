@@ -45,7 +45,21 @@ async fn main() {
             handles.push(handle);
         }
 
-        future::join_all(handles).await;
+        let results: Vec<Result<(), anyhow::Error>> = future::join_all(handles)
+            .await
+            .into_iter()
+            .map(|e| e.unwrap())
+            .collect();
+
+        for result in results {
+            match result {
+                Ok(_) => {
+                    println!("Ok");
+                }
+                Err(e) => eprintln!("Error: {}", e),
+            }
+        }
+
         tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
     }
 }
