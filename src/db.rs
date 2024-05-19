@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -9,9 +9,7 @@ pub struct Db {
 
 #[derive(Debug, Clone)]
 pub struct Endpoint {
-    pub url: String,
     pub status: Status,
-    pub last_check: NaiveDateTime,
 }
 
 #[derive(Debug, Clone)]
@@ -36,22 +34,14 @@ impl Db {
     }
 
     pub fn set_status_up(&mut self, url: &str) {
-        self.endpoints.insert(
-            url.to_string(),
-            Endpoint {
-                url: url.to_string(),
-                last_check: self.now(),
-                status: Status::Up,
-            },
-        );
+        self.endpoints
+            .insert(url.to_string(), Endpoint { status: Status::Up });
     }
 
     pub fn set_status_down(&mut self, url: &str) {
         self.endpoints.insert(
             url.to_string(),
             Endpoint {
-                url: url.to_string(),
-                last_check: self.now(),
                 status: Status::Down,
             },
         );
@@ -62,8 +52,6 @@ impl Db {
 
         let res = endpoint.unwrap_or_else(|| {
             let endpoint = Endpoint {
-                url: url.to_string(),
-                last_check: self.now(),
                 status: Status::Pending,
             };
 
@@ -73,9 +61,5 @@ impl Db {
         });
 
         res
-    }
-
-    fn now(&self) -> NaiveDateTime {
-        Local::now().naive_local()
     }
 }
