@@ -41,7 +41,7 @@ async fn main() {
             let url = url.clone();
             let bot = Arc::clone(&bot);
             let db = Arc::clone(&db);
-            let handle = tokio::spawn(async move { check_status(&url, &bot, db).await });
+            let handle = tokio::spawn(async move { check_status(&url, &bot, &db).await });
             handles.push(handle);
         }
 

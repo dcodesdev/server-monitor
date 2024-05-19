@@ -6,7 +6,7 @@ use std::sync::Arc;
 use teloxide::Bot;
 use tokio::sync::Mutex;
 
-pub async fn check_status<'a>(url: &str, bot: &'a Bot, db: Arc<Mutex<Db>>) -> anyhow::Result<()> {
+pub async fn check_status<'a>(url: &str, bot: &'a Bot, db: &Arc<Mutex<Db>>) -> anyhow::Result<()> {
     let response = reqwest::get(url).await?;
     let status = response.status();
 
