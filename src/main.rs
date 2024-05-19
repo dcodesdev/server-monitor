@@ -2,6 +2,7 @@ mod bot;
 mod db;
 mod notify;
 mod request;
+mod status;
 
 use bot::create_bot;
 use db::Db;

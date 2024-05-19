@@ -1,9 +1,10 @@
-use chrono::{Local, NaiveDateTime};
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Db {
-    endpoints: HashMap<String, Endpoint>,
+    pub endpoints: HashMap<String, Endpoint>,
+    pub incidents: Vec<Incident>,
 }
 
 #[derive(Debug, Clone)]
@@ -11,6 +12,12 @@ pub struct Endpoint {
     pub url: String,
     pub status: Status,
     pub last_check: NaiveDateTime,
+}
+
+#[derive(Debug, Clone)]
+pub struct Incident {
+    pub message: &'static str,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,6 +31,7 @@ impl Db {
     pub fn new() -> Self {
         Self {
             endpoints: HashMap::new(),
+            incidents: Vec::new(),
         }
     }
 
