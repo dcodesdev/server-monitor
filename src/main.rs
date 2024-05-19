@@ -8,6 +8,7 @@ use bot::create_bot;
 use db::Db;
 use futures::future;
 use request::check_status;
+use status::server_update_cron;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -34,6 +35,8 @@ async fn main() {
 
     println!("Server monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);
+
+    server_update_cron(&db, interval);
 
     loop {
         let mut handles = Vec::new();
