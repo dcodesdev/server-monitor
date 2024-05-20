@@ -55,9 +55,8 @@ async fn main() {
             .collect();
 
         for result in results {
-            match result {
-                Ok(_) => {}
-                Err(e) => eprintln!("Error: {}", e),
+            if let Err(e) = result {
+                eprintln!("Error: {}", e);
             }
         }
 
