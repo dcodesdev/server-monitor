@@ -6,7 +6,7 @@ mod status;
 use bot::create_bot;
 use db::Db;
 use futures::future;
-use status::{check_url, server_update_cron};
+use status::{check_url_status, server_update_cron};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -44,7 +44,7 @@ async fn main() {
             let url = url.clone();
             let bot = bot.clone();
             let db = db.clone();
-            let handle = tokio::spawn(async move { check_url(&url, &bot, &db).await });
+            let handle = tokio::spawn(async move { check_url_status(&url, &bot, &db).await });
             handles.push(handle);
         }
 
