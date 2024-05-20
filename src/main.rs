@@ -1,19 +1,18 @@
 mod bot;
 mod db;
-mod notify;
 mod request;
 mod status;
 
 use bot::create_bot;
 use db::Db;
 use futures::future;
-use request::check_status;
-use status::server_update_cron;
+use status::{check_url, server_update_cron};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// In ms
 const DEFAULT_INTERVAL: u64 = 1000 * 60; // 1 minute
+const UPDATE_INTERVAL: u64 = 1000 * 10;
 
 #[tokio::main]
 async fn main() {
@@ -36,16 +35,16 @@ async fn main() {
     println!("Server monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);
 
-    server_update_cron(&db, interval);
+    server_update_cron(&db, UPDATE_INTERVAL, &bot);
 
     loop {
         let mut handles = Vec::new();
 
         for url in &urls {
             let url = url.clone();
-            let bot = Arc::clone(&bot);
-            let db = Arc::clone(&db);
-            let handle = tokio::spawn(async move { check_status(&url, &bot, &db).await });
+            let bot = bot.clone();
+            let db = db.clone();
+            let handle = tokio::spawn(async move { check_url(&url, &bot, &db).await });
             handles.push(handle);
         }
 
