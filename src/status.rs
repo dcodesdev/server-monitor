@@ -1,59 +1,54 @@
-// This module sends a message every 24 hrs
-// about the state of the servers
-
-use anyhow::Ok;
-use std::{sync::Arc, time::Duration};
-use teloxide::Bot;
-use tokio::sync::Mutex;
-
 use crate::{
     bot::{notify, NotifyOpts},
     db::{Db, Status},
     request::url_lookup,
 };
+use chrono::Utc;
+use std::{sync::Arc, time::Duration};
+use teloxide::Bot;
+use tokio::sync::Mutex;
 
-/// Gets the incidents from the db and creates
-/// a Telegram message and returns the String
+/// Gets the incidents from the db and creates a Telegram message and returns the String
 async fn server_update_message(db: &Mutex<Db>) -> String {
     let mut message = String::from("Server status:\n\n");
-
     let db = db.lock().await;
 
-    let success = db.incidents.len() == 0
+    let all_up = db.incidents.is_empty()
         && db
             .endpoints
-            .iter()
-            .all(|(_, value)| value.status == Status::Up);
+            .values()
+            .all(|value| value.status == Status::Up);
 
-    if success {
+    if all_up {
         message.push_str("✅ No new incidents have happened so far.\n\n");
     }
 
-    db.endpoints.iter().for_each(|(url, value)| {
+    for (url, value) in &db.endpoints {
         let emoji = match value.status {
             Status::Up => "✅",
             Status::Down => "❌",
             Status::Pending => "🕒",
         };
 
-        message.push_str(&format!("URL: {}\n", url));
-        message.push_str(&format!("Status: {} {:?}\n", emoji, value.status));
+        message.push_str(&format!(
+            "URL: {}\nStatus: {} {:?}\n",
+            url, emoji, value.status
+        ));
 
-        let dur = match value.uptime_at {
+        let uptime = match value.uptime_at {
             Some(uptime_at) => {
-                let now = chrono::Utc::now();
+                let now = Utc::now();
                 let duration = now.signed_duration_since(uptime_at);
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
 
-                let duration_days = duration.num_days();
-                let duration_hrs = duration.num_hours() - (duration_days * 24);
-
-                format!("{:?} days and {:?} hours", duration_days, duration_hrs)
+                format!("{:?} days and {:?} hours", days, hours)
             }
             None => "Uptime: N/A".to_string(),
         };
 
-        message.push_str(&format!("Up for: {:?}\n\n", dur));
-    });
+        message.push_str(&format!("Up for: {}\n\n", uptime));
+    }
 
     message
 }
@@ -61,32 +56,26 @@ async fn server_update_message(db: &Mutex<Db>) -> String {
 #[allow(dead_code)]
 async fn incidents_update_message(db: &Mutex<Db>) -> String {
     let db = db.lock().await;
-
     let mut message = String::new();
 
-    if db.incidents.len() > 0 {
+    if !db.incidents.is_empty() {
         message.push_str("Incidents:\n\n");
     }
 
-    db.incidents.iter().enumerate().for_each(|(i, incident)| {
-        let is_last = (db.incidents.len() - 1) == i;
-        let time = format!("{}", incident.created_at.format("%d/%m/%Y %H:%M"));
-        message.push_str(&format!("Message: {}", incident.message));
-        message.push_str("\n");
-        message.push_str(&format!("Time: {}", time));
+    for (i, incident) in db.incidents.iter().enumerate() {
+        let is_last = i == db.incidents.len() - 1;
+        let time = incident.created_at.format("%d/%m/%Y %H:%M").to_string();
+        message.push_str(&format!("Message: {}\nTime: {}\n", incident.message, time));
 
         if !is_last {
-            message.push_str("\n\n");
+            message.push_str("\n");
         }
-    });
+    }
 
     message
 }
 
-pub fn server_update_cron(db: &Arc<Mutex<Db>>, interval: u64, bot: &Arc<Bot>) {
-    let db = db.clone();
-    let bot = bot.clone();
-
+pub fn server_update_cron(db: Arc<Mutex<Db>>, interval: u64, bot: Arc<Bot>) {
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(interval)).await;
         loop {
@@ -94,10 +83,8 @@ pub fn server_update_cron(db: &Arc<Mutex<Db>>, interval: u64, bot: &Arc<Bot>) {
             let incidents_message = incidents_update_message(&db).await;
             let message = format!("{}{}", status_message, incidents_message);
 
-            let notify_result = notify(&NotifyOpts { bot: &bot, message }).await;
-
-            if let Err(err) = notify_result {
-                eprintln!("Error sending notification: {}", err)
+            if let Err(err) = notify(&NotifyOpts { bot: &bot, message }).await {
+                eprintln!("Error sending notification: {}", err);
             }
 
             tokio::time::sleep(Duration::from_millis(interval)).await;
@@ -111,7 +98,6 @@ pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Mutex<Db>>) -> anyh
     let endpoint = db.get(url);
 
     if is_success {
-        // If the previous one was "Down" and now it is "Up", then notify it is up again.
         if endpoint.status == Status::Down {
             notify(&NotifyOpts {
                 message: format!("✅ {} is up again!", url),
@@ -119,18 +105,15 @@ pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Mutex<Db>>) -> anyh
             })
             .await?;
         }
-
         db.set_status_up(url);
-        return Ok(());
-    }
-
-    // If it is already set as Down, then don't notify.
-    if endpoint.status != Status::Down {
-        notify(&NotifyOpts {
-            message: format!("❌ {} is down!", url),
-            bot,
-        })
-        .await?;
+    } else {
+        if endpoint.status != Status::Down {
+            notify(&NotifyOpts {
+                message: format!("❌ {} is down!", url),
+                bot,
+            })
+            .await?;
+        }
         db.set_status_down(url);
     }
 
