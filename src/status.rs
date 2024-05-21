@@ -3,7 +3,7 @@ use crate::{
     db::{Db, Status},
     request::url_lookup,
 };
-use chrono::Utc;
+use chrono::Local;
 use std::{sync::Arc, time::Duration};
 use teloxide::Bot;
 use tokio::sync::Mutex;
@@ -37,7 +37,7 @@ async fn server_update_message(db: &Mutex<Db>) -> String {
 
         let uptime = match value.uptime_at {
             Some(uptime_at) => {
-                let now = Utc::now();
+                let now = Local::now();
                 let duration = now.signed_duration_since(uptime_at);
                 let days = duration.num_days();
                 let hours = duration.num_hours() % 24;
@@ -64,7 +64,7 @@ async fn incidents_update_message(db: &Mutex<Db>) -> String {
 
     for (i, incident) in db.incidents.iter().enumerate() {
         let is_last = i == db.incidents.len() - 1;
-        let time = incident.created_at.format("%d/%m/%Y %H:%M").to_string();
+        let time = incident.created_at.format("%d/%m/%Y %I:%M %p").to_string();
         message.push_str(&format!("Message: {}\nTime: {}\n", incident.message, time));
 
         if !is_last {

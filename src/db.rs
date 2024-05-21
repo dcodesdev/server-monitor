@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -10,14 +10,14 @@ pub struct Db {
 #[derive(Debug, Clone)]
 pub struct Endpoint {
     pub status: Status,
-    pub uptime_at: Option<DateTime<Utc>>,
+    pub uptime_at: Option<DateTime<Local>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Incident {
     pub url: String,
     pub message: String,
-    pub created_at: DateTime<Utc>,
+    pub created_at: DateTime<Local>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,7 +40,7 @@ impl Db {
             url.to_string(),
             Endpoint {
                 status: Status::Up,
-                uptime_at: Some(Utc::now()),
+                uptime_at: Some(Local::now()),
             },
         );
 
@@ -59,7 +59,7 @@ impl Db {
         self.incidents.push(Incident {
             url: url.to_string(),
             message: format!("{} was down!", url),
-            created_at: Utc::now(),
+            created_at: Local::now(),
         })
     }
 
