@@ -53,7 +53,6 @@ async fn server_update_message(db: &Mutex<Db>) -> String {
     message
 }
 
-#[allow(dead_code)]
 async fn incidents_update_message(db: &Mutex<Db>) -> String {
     let db = db.lock().await;
     let mut message = String::new();
