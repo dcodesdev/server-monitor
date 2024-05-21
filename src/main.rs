@@ -1,31 +1,31 @@
 mod bot;
 mod db;
-mod notify;
 mod request;
+mod status;
 
 use bot::create_bot;
 use db::Db;
 use futures::future;
-use request::check_status;
+use status::{check_url_status, server_update_cron};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-/// In ms
 const DEFAULT_INTERVAL: u64 = 1000 * 60; // 1 minute
+const UPDATE_INTERVAL: u64 = 1000 * 60 * 60 * 24; // 24 hours
 
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
 
-    let urls = std::env::var("URLS")
+    let urls: Vec<String> = std::env::var("URLS")
         .expect("URLS must be set")
         .split(',')
         .map(|item| item.to_string())
-        .collect::<Vec<String>>();
+        .collect();
 
-    let interval = std::env::var("INTERVAL")
-        .unwrap_or(DEFAULT_INTERVAL.to_string())
-        .parse::<u64>()
+    let interval: u64 = std::env::var("INTERVAL")
+        .unwrap_or_else(|_| DEFAULT_INTERVAL.to_string())
+        .parse()
         .expect("INTERVAL must be a number");
 
     let bot = Arc::new(create_bot());
@@ -34,27 +34,28 @@ async fn main() {
     println!("Server monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);
 
+    server_update_cron(Arc::clone(&db), UPDATE_INTERVAL, Arc::clone(&bot));
+
     loop {
-        let mut handles = Vec::new();
+        let handles: Vec<_> = urls
+            .iter()
+            .map(|url| {
+                let url = url.clone();
+                let bot = Arc::clone(&bot);
+                let db = Arc::clone(&db);
+                tokio::spawn(async move { check_url_status(&url, &bot, &db).await })
+            })
+            .collect();
 
-        for url in &urls {
-            let url = url.clone();
-            let bot = Arc::clone(&bot);
-            let db = Arc::clone(&db);
-            let handle = tokio::spawn(async move { check_status(&url, &bot, db).await });
-            handles.push(handle);
-        }
-
-        let results: Vec<Result<(), anyhow::Error>> = future::join_all(handles)
+        let results: Vec<_> = future::join_all(handles)
             .await
             .into_iter()
-            .map(|e| e.unwrap())
+            .map(|res| res.unwrap())
             .collect();
 
         for result in results {
-            match result {
-                Ok(_) => {}
-                Err(e) => eprintln!("Error: {}", e),
+            if let Err(e) = result {
+                eprintln!("Error: {}", e);
             }
         }
 
