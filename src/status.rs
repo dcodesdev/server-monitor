@@ -15,15 +15,57 @@ use crate::{
 /// Gets the incidents from the db and creates
 /// a Telegram message and returns the String
 async fn server_update_message(db: &Mutex<Db>) -> String {
-    let mut message = String::new();
+    let mut message = String::from("Server status:\n\n");
 
     let db = db.lock().await;
-    if db.incidents.len() == 0 {
+
+    let success = db.incidents.len() == 0
+        && db
+            .endpoints
+            .iter()
+            .all(|(_, value)| value.status == Status::Up);
+
+    if success {
         message.push_str("✅ No new incidents have happened so far.\n\n");
-        db.endpoints.iter().for_each(|(url, value)| {
-            message.push_str(&format!("URL: {}\n", url));
-            message.push_str(&format!("Status: {:?}\n\n", value.status));
-        });
+    }
+
+    db.endpoints.iter().for_each(|(url, value)| {
+        let emoji = match value.status {
+            Status::Up => "✅",
+            Status::Down => "❌",
+            Status::Pending => "🕒",
+        };
+
+        message.push_str(&format!("URL: {}\n", url));
+        message.push_str(&format!("Status: {} {:?}\n", emoji, value.status));
+
+        let dur = match value.uptime_at {
+            Some(uptime_at) => {
+                let now = chrono::Utc::now();
+                let duration = now.signed_duration_since(uptime_at);
+
+                let duration_days = duration.num_days();
+                let duration_hrs = duration.num_hours() - (duration_days * 24);
+
+                format!("{:?} days and {:?} hours", duration_days, duration_hrs)
+            }
+            None => "Uptime: N/A".to_string(),
+        };
+
+        message.push_str(&format!("Up for: {:?}\n\n", dur));
+    });
+
+    message
+}
+
+#[allow(dead_code)]
+async fn incidents_update_message(db: &Mutex<Db>) -> String {
+    let db = db.lock().await;
+
+    let mut message = String::new();
+
+    if db.incidents.len() > 0 {
+        message.push_str("Incidents:\n\n");
     }
 
     db.incidents.iter().enumerate().for_each(|(i, incident)| {
@@ -48,19 +90,14 @@ pub fn server_update_cron(db: &Arc<Mutex<Db>>, interval: u64, bot: &Arc<Bot>) {
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(interval)).await;
         loop {
-            let message = server_update_message(&db).await;
+            let status_message = server_update_message(&db).await;
+            let incidents_message = incidents_update_message(&db).await;
+            let message = format!("{}{}", status_message, incidents_message);
+
             let notify_result = notify(&NotifyOpts { bot: &bot, message }).await;
 
             if let Err(err) = notify_result {
                 eprintln!("Error sending notification: {}", err)
-            }
-
-            // This block is important to drop the `db` which unlocks
-            // the `db` when finished to be used by other threads
-            {
-                // Clean the db
-                let mut db = db.lock().await;
-                db.incidents.clear();
             }
 
             tokio::time::sleep(Duration::from_millis(interval)).await;

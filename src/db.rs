@@ -10,10 +10,12 @@ pub struct Db {
 #[derive(Debug, Clone)]
 pub struct Endpoint {
     pub status: Status,
+    pub uptime_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Incident {
+    pub url: String,
     pub message: String,
     pub created_at: DateTime<Utc>,
 }
@@ -34,8 +36,15 @@ impl Db {
     }
 
     pub fn set_status_up(&mut self, url: &str) {
-        self.endpoints
-            .insert(url.to_string(), Endpoint { status: Status::Up });
+        self.endpoints.insert(
+            url.to_string(),
+            Endpoint {
+                status: Status::Up,
+                uptime_at: Some(Local::now().to_utc()),
+            },
+        );
+
+        self.incidents.retain(|incident| incident.url != url);
     }
 
     pub fn set_status_down(&mut self, url: &str) {
@@ -43,10 +52,12 @@ impl Db {
             url.to_string(),
             Endpoint {
                 status: Status::Down,
+                uptime_at: None,
             },
         );
 
         self.incidents.push(Incident {
+            url: url.to_string(),
             message: format!("{} Was down!", url),
             created_at: Local::now().to_utc(),
         })
@@ -58,6 +69,7 @@ impl Db {
         let res = endpoint.unwrap_or_else(|| {
             let endpoint = Endpoint {
                 status: Status::Pending,
+                uptime_at: None,
             };
 
             self.endpoints.insert(url.to_string(), endpoint.clone());
