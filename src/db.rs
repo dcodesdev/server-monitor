@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -40,7 +40,7 @@ impl Db {
             url.to_string(),
             Endpoint {
                 status: Status::Up,
-                uptime_at: Some(Local::now().to_utc()),
+                uptime_at: Some(Utc::now()),
             },
         );
 
@@ -58,25 +58,20 @@ impl Db {
 
         self.incidents.push(Incident {
             url: url.to_string(),
-            message: format!("{} Was down!", url),
-            created_at: Local::now().to_utc(),
+            message: format!("{} was down!", url),
+            created_at: Utc::now(),
         })
     }
 
     pub fn get(&mut self, url: &str) -> Endpoint {
-        let endpoint = self.endpoints.get(url).cloned();
-
-        let res = endpoint.unwrap_or_else(|| {
+        self.endpoints.get(url).cloned().unwrap_or_else(|| {
             let endpoint = Endpoint {
                 status: Status::Pending,
                 uptime_at: None,
             };
 
             self.endpoints.insert(url.to_string(), endpoint.clone());
-
             endpoint
-        });
-
-        res
+        })
     }
 }
