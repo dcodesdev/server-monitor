@@ -14,7 +14,7 @@ use crate::{
 
 /// Gets the incidents from the db and creates
 /// a Telegram message and returns the String
-async fn server_update(db: &Mutex<Db>) -> String {
+async fn server_update_message(db: &Mutex<Db>) -> String {
     let mut message = String::new();
 
     let db = db.lock().await;
@@ -48,7 +48,7 @@ pub fn server_update_cron(db: &Arc<Mutex<Db>>, interval: u64, bot: &Arc<Bot>) {
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(interval)).await;
         loop {
-            let message = server_update(&db).await;
+            let message = server_update_message(&db).await;
             let notify_result = notify(&NotifyOpts { bot: &bot, message }).await;
 
             if let Err(err) = notify_result {
