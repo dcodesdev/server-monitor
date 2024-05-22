@@ -1,23 +1,105 @@
-use chrono::{DateTime, Local};
-use std::collections::HashMap;
+use chrono::{Local, NaiveDateTime};
+use sqlx::{Pool, Sqlite, SqlitePool};
 
 #[derive(Debug)]
 pub struct Db {
-    pub endpoints: HashMap<String, Endpoint>,
-    pub incidents: Vec<Incident>,
+    pub verbose: bool,
+    pub pool: Pool<Sqlite>,
+    pub endpoint: EndpointModel,
+    pub incident: IncidentModel,
 }
 
 #[derive(Debug, Clone)]
 pub struct Endpoint {
+    pub id: String,
+    pub url: String,
     pub status: Status,
-    pub uptime_at: Option<DateTime<Local>>,
+    pub uptime_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone)]
 pub struct Incident {
+    pub id: String,
     pub url: String,
     pub message: String,
-    pub created_at: DateTime<Local>,
+    pub created_at: NaiveDateTime,
+}
+
+type Conn = Pool<Sqlite>;
+
+#[derive(Debug, Clone)]
+pub struct IncidentModel {
+    pool: Conn,
+}
+
+impl IncidentModel {
+    pub fn new(pool: Conn) -> Self {
+        Self { pool }
+    }
+
+    pub async fn get_all(&self) -> anyhow::Result<Vec<Incident>> {
+        let incidents = sqlx::query_as!(Incident, "SELECT * FROM incident")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(incidents)
+    }
+
+    pub async fn is_empty(&self) -> anyhow::Result<bool> {
+        let incidents = sqlx::query!("SELECT id FROM incident")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(incidents.is_empty())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EndpointModel {
+    pool: Conn,
+}
+
+impl EndpointModel {
+    pub fn new(pool: Conn) -> Self {
+        Self { pool }
+    }
+
+    pub async fn get_all(&self) -> anyhow::Result<Vec<Endpoint>> {
+        let endpoints = sqlx::query_as!(Endpoint, "SELECT * FROM endpoint")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(endpoints)
+    }
+
+    pub async fn get(&self, url: &str) -> anyhow::Result<Endpoint> {
+        let endpoint = sqlx::query_as!(Endpoint, "SELECT * FROM endpoint WHERE url = ?", url)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        match endpoint {
+            Some(endpoint) => Ok(endpoint),
+            None => {
+                let endpoint = sqlx::query!(
+                    "INSERT INTO endpoint (url, status, uptime_at) VALUES (?, 'PENDING', NULL) RETURNING *",
+                    url
+                )
+                .fetch_one(&self.pool)
+                .await?;
+
+                let endpoint = Endpoint {
+                    id: endpoint.id,
+                    url: endpoint.url,
+                    status: Status::Pending,
+                    uptime_at: None,
+                    created_at: endpoint.created_at,
+                };
+
+                Ok(endpoint)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,51 +109,114 @@ pub enum Status {
     Pending,
 }
 
-impl Db {
-    pub fn new() -> Self {
-        Self {
-            endpoints: HashMap::new(),
-            incidents: Vec::new(),
+impl From<String> for Status {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "UP" => Status::Up,
+            "DOWN" => Status::Down,
+            _ => Status::Pending,
         }
     }
+}
 
-    pub fn set_status_up(&mut self, url: &str) {
-        self.endpoints.insert(
-            url.to_string(),
-            Endpoint {
-                status: Status::Up,
-                uptime_at: Some(Local::now()),
-            },
-        );
+impl Db {
+    pub async fn new() -> anyhow::Result<Self> {
+        // create the db file if not exists
+        create_db_if_not_exists()?;
 
-        self.incidents.retain(|incident| incident.url != url);
+        let verbose = false;
+        // connect the db
+        let pool = connect(verbose).await?;
+
+        // run the migrations
+        migrate(&pool).await?;
+
+        let incident = IncidentModel::new(pool.clone());
+        let endpoint = EndpointModel::new(pool.clone());
+
+        let db = Self {
+            verbose,
+            pool,
+            incident,
+            endpoint,
+        };
+
+        Ok(db)
     }
 
-    pub fn set_status_down(&mut self, url: &str) {
-        self.endpoints.insert(
-            url.to_string(),
-            Endpoint {
-                status: Status::Down,
-                uptime_at: None,
-            },
-        );
+    pub async fn set_status_up(&self, url: &str) -> anyhow::Result<()> {
+        // Update the database
+        let now = Local::now();
+        sqlx::query!(
+            "UPDATE endpoint SET status = 'UP', uptime_at = ? WHERE url = ?",
+            now,
+            url
+        )
+        .execute(&self.pool)
+        .await?;
 
-        self.incidents.push(Incident {
-            url: url.to_string(),
-            message: format!("{} was down!", url),
-            created_at: Local::now(),
-        })
+        sqlx::query!("DELETE FROM incident WHERE url = ?", url)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
-    pub fn get(&mut self, url: &str) -> Endpoint {
-        self.endpoints.get(url).cloned().unwrap_or_else(|| {
-            let endpoint = Endpoint {
-                status: Status::Pending,
-                uptime_at: None,
-            };
+    pub async fn set_status_down(&self, url: &str) -> anyhow::Result<()> {
+        sqlx::query!(
+            "UPDATE endpoint SET status = 'DOWN', uptime_at = NULL WHERE url = ?",
+            url
+        )
+        .execute(&self.pool)
+        .await?;
 
-            self.endpoints.insert(url.to_string(), endpoint.clone());
-            endpoint
-        })
+        let message = format!("{} was down!", &url);
+        let created_at = Local::now();
+        sqlx::query!(
+            "INSERT INTO incident (url, message, created_at) VALUES (?, ?, ?)",
+            url,
+            message,
+            created_at
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
+}
+
+pub async fn connect(verbose: bool) -> anyhow::Result<Pool<Sqlite>> {
+    let db_url = "sqlite:db/db.sqlite";
+
+    let pool = SqlitePool::connect(&db_url).await?;
+
+    if verbose {
+        println!("Connected to the database {}", &db_url);
+    }
+
+    Ok(pool)
+}
+
+fn create_db_if_not_exists() -> anyhow::Result<()> {
+    let exists = std::path::Path::new("db/db.sqlite").exists();
+    if !exists {
+        println!("Creating the database...");
+
+        std::fs::create_dir_all("db")?;
+        std::fs::write("db/db.sqlite", "")?;
+
+        println!("Database created!");
+    }
+
+    Ok(())
+}
+
+async fn migrate(pool: &Conn) -> anyhow::Result<()> {
+    println!("Running the migrations...");
+
+    sqlx::migrate!("./migrations/").run(pool).await?;
+
+    println!("Migrations completed!");
+
+    Ok(())
 }

@@ -8,13 +8,12 @@ use db::Db;
 use futures::future;
 use status::{check_url_status, server_update_cron};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 const DEFAULT_INTERVAL: u64 = 1000 * 60; // 1 minute
 const UPDATE_INTERVAL: u64 = 1000 * 60 * 60 * 24; // 24 hours
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
     let urls: Vec<String> = std::env::var("URLS")
@@ -29,7 +28,7 @@ async fn main() {
         .expect("INTERVAL must be a number");
 
     let bot = Arc::new(create_bot());
-    let db = Arc::new(Mutex::new(Db::new()));
+    let db = Arc::new(Db::new().await?);
 
     println!("Server monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);

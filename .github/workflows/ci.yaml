@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "sqlite://db.sqlite"
 
     steps:
       - name: Checkout
@@ -18,6 +20,13 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+
+      - name: Set up SQLX
+        run: |
+          cargo install sqlx-cli --no-default-features --features sqlite
+          mkdir db
+          sqlx db create
+          sqlx migrate run
 
       - name: Cargo test
         run: cargo test
