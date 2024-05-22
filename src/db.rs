@@ -121,15 +121,16 @@ impl From<String> for Status {
 
 impl Db {
     pub async fn new() -> anyhow::Result<Self> {
-        // create the db file if not exists
-        create_db_if_not_exists()?;
-
         let verbose = false;
+
+        // create the db file if not exists
+        create_db_if_not_exists(verbose)?;
+
         // connect the db
         let pool = connect(verbose).await?;
 
         // run the migrations
-        migrate(&pool).await?;
+        migrate(&pool, verbose).await?;
 
         let incident = IncidentModel::new(pool.clone());
         let endpoint = EndpointModel::new(pool.clone());
@@ -197,26 +198,34 @@ pub async fn connect(verbose: bool) -> anyhow::Result<Pool<Sqlite>> {
     Ok(pool)
 }
 
-fn create_db_if_not_exists() -> anyhow::Result<()> {
+fn create_db_if_not_exists(verbose: bool) -> anyhow::Result<()> {
     let exists = std::path::Path::new("db/db.sqlite").exists();
     if !exists {
-        println!("Creating the database...");
+        if verbose {
+            println!("Creating the database...");
+        }
 
         std::fs::create_dir_all("db")?;
         std::fs::write("db/db.sqlite", "")?;
 
-        println!("Database created!");
+        if verbose {
+            println!("Database created!");
+        }
     }
 
     Ok(())
 }
 
-async fn migrate(pool: &Conn) -> anyhow::Result<()> {
-    println!("Running the migrations...");
+async fn migrate(pool: &Conn, verbose: bool) -> anyhow::Result<()> {
+    if verbose {
+        println!("Running the migrations...");
+    }
 
     sqlx::migrate!("./migrations/").run(pool).await?;
 
-    println!("Migrations completed!");
+    if verbose {
+        println!("Migrations completed!");
+    }
 
     Ok(())
 }
