@@ -102,13 +102,7 @@ pub fn server_update_cron(db: Arc<Db>, bot: Arc<Bot>) {
 }
 
 pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
-    let records = sqlx::query!("SELECT * FROM endpoint;")
-        .fetch_all(&db.pool)
-        .await?;
-
-    println!("{:#?}", records);
-
-    let result = tokio::join!(url_lookup(url), db.get(url));
+    let result = tokio::join!(url_lookup(url), db.endpoint.get(url));
 
     let is_success = result.0?;
     let endpoint = result.1?;

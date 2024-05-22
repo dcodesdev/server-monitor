@@ -72,6 +72,34 @@ impl EndpointModel {
 
         Ok(endpoints)
     }
+
+    pub async fn get(&self, url: &str) -> anyhow::Result<Endpoint> {
+        let endpoint = sqlx::query_as!(Endpoint, "SELECT * FROM endpoint WHERE url = ?", url)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        match endpoint {
+            Some(endpoint) => Ok(endpoint),
+            None => {
+                let endpoint = sqlx::query!(
+                    "INSERT INTO endpoint (url, status, uptime_at) VALUES (?, 'PENDING', NULL) RETURNING *",
+                    url
+                )
+                .fetch_one(&self.pool)
+                .await?;
+
+                let endpoint = Endpoint {
+                    id: endpoint.id,
+                    url: endpoint.url,
+                    status: Status::Pending,
+                    uptime_at: None,
+                    created_at: endpoint.created_at,
+                };
+
+                Ok(endpoint)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -151,34 +179,6 @@ impl Db {
         .await?;
 
         Ok(())
-    }
-
-    pub async fn get(&self, url: &str) -> anyhow::Result<Endpoint> {
-        let endpoint = sqlx::query_as!(Endpoint, "SELECT * FROM endpoint WHERE url = ?", url)
-            .fetch_optional(&self.pool)
-            .await?;
-
-        match endpoint {
-            Some(endpoint) => Ok(endpoint),
-            None => {
-                let endpoint = sqlx::query!(
-                    "INSERT INTO endpoint (url, status, uptime_at) VALUES (?, 'PENDING', NULL) RETURNING *",
-                    url
-                )
-                .fetch_one(&self.pool)
-                .await?;
-
-                let endpoint = Endpoint {
-                    id: endpoint.id,
-                    url: endpoint.url,
-                    status: Status::Pending,
-                    uptime_at: None,
-                    created_at: endpoint.created_at,
-                };
-
-                Ok(endpoint)
-            }
-        }
     }
 }
 
