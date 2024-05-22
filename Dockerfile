@@ -8,7 +8,6 @@ WORKDIR /app
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./src ./src
 COPY ./migrations ./migrations
-COPY ./.sqlx/ ./.sqlx 
 
 ENV DATABASE_URL=sqlite://db/db.sqlite
 
