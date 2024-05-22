@@ -7,24 +7,21 @@ use crate::{
 use chrono::Local;
 use std::{sync::Arc, time::Duration};
 use teloxide::Bot;
-use tokio::sync::Mutex;
 
 /// Gets the incidents from the db and creates a Telegram message and returns the String
-async fn server_update_message(db: &Mutex<Db>) -> String {
+async fn server_update_message(db: &Db) -> anyhow::Result<String> {
     let mut message = String::from("Server status:\n\n");
-    let db = db.lock().await;
 
-    let all_up = db.incidents.is_empty()
-        && db
-            .endpoints
-            .values()
-            .all(|value| value.status == Status::Up);
+    let endpoints = db.endpoint.get_all().await?;
+
+    let all_up =
+        db.incident.is_empty().await? && endpoints.iter().all(|value| value.status == Status::Up);
 
     if all_up {
         message.push_str("✅ No new incidents have happened so far.\n\n");
     }
 
-    db.endpoints.iter().for_each(|(url, value)| {
+    endpoints.iter().for_each(|value| {
         let emoji = match value.status {
             Status::Up => "✅",
             Status::Down => "❌",
@@ -33,12 +30,12 @@ async fn server_update_message(db: &Mutex<Db>) -> String {
 
         message.push_str(&format!(
             "URL: {}\nStatus: {} {:?}\n",
-            url, emoji, value.status
+            value.url, emoji, value.status
         ));
 
         let uptime = match value.uptime_at {
             Some(uptime_at) => {
-                let now = Local::now();
+                let now = Local::now().naive_local();
                 let duration = now.signed_duration_since(uptime_at);
                 let days = duration.num_days();
                 let hours = duration.num_hours() % 24;
@@ -51,19 +48,19 @@ async fn server_update_message(db: &Mutex<Db>) -> String {
         message.push_str(&format!("Up for: {}\n\n", uptime));
     });
 
-    message
+    Ok(message)
 }
 
-async fn incidents_update_message(db: &Mutex<Db>) -> String {
-    let db = db.lock().await;
+async fn incidents_update_message(db: &Arc<Db>) -> anyhow::Result<String> {
     let mut message = String::new();
 
-    if !db.incidents.is_empty() {
+    if !db.incident.is_empty().await? {
         message.push_str("Incidents:\n\n");
     }
 
-    for (i, incident) in db.incidents.iter().enumerate() {
-        let is_last = i == db.incidents.len() - 1;
+    let incidents = db.incident.get_all().await?;
+    for (i, incident) in incidents.iter().enumerate() {
+        let is_last = i == incidents.len() - 1;
         let time = incident.created_at.format("%d/%m/%Y %I:%M %p").to_string();
         message.push_str(&format!("Message: {}\nTime: {}\n", incident.message, time));
 
@@ -72,15 +69,27 @@ async fn incidents_update_message(db: &Mutex<Db>) -> String {
         }
     }
 
-    message
+    Ok(message)
 }
 
-pub fn server_update_cron(db: Arc<Mutex<Db>>, bot: Arc<Bot>) {
+pub fn server_update_cron(db: Arc<Db>, bot: Arc<Bot>) {
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(UPDATE_INTERVAL)).await;
         loop {
-            let status_message = server_update_message(&db).await;
-            let incidents_message = incidents_update_message(&db).await;
+            let status_message = match server_update_message(&db).await {
+                Ok(msg) => msg,
+                Err(err) => {
+                    eprintln!("Error getting status message: {}", err);
+                    continue;
+                }
+            };
+            let incidents_message = match incidents_update_message(&db).await {
+                Ok(msg) => msg,
+                Err(err) => {
+                    eprintln!("Error getting incidents message: {}", err);
+                    continue;
+                }
+            };
             let message = format!("{}{}", status_message, incidents_message);
 
             if let Err(err) = notify(&NotifyOpts { bot: &bot, message }).await {
@@ -92,14 +101,21 @@ pub fn server_update_cron(db: Arc<Mutex<Db>>, bot: Arc<Bot>) {
     });
 }
 
-pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Mutex<Db>>) -> anyhow::Result<()> {
-    let is_success = url_lookup(url).await?;
-    let mut db = db.lock().await;
-    let endpoint = db.get(url);
+pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
+    let records = sqlx::query!("SELECT * FROM endpoint;")
+        .fetch_all(&db.pool)
+        .await?;
+
+    println!("{:#?}", records);
+
+    let result = tokio::join!(url_lookup(url), db.get(url));
+
+    let is_success = result.0?;
+    let endpoint = result.1?;
 
     if is_success {
         if endpoint.status != Status::Up {
-            db.set_status_up(url);
+            db.set_status_up(url).await?;
 
             if endpoint.status == Status::Down {
                 notify(&NotifyOpts {
@@ -116,7 +132,7 @@ pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Mutex<Db>>) -> anyh
                 bot,
             })
             .await?;
-            db.set_status_down(url);
+            db.set_status_down(url).await?;
         }
     }
 
