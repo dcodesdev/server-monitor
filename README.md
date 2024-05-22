@@ -39,11 +39,34 @@ Run the following command to run on Docker:
 ```bash
 docker run -d \
   --name server-monitor \
+  -v ./server-monitor:/app/db \
   -e URLS=https://example1.com,https://example2.com \
   -e TELOXIDE_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11 \
   -e TELEGRAM_CHAT_ID=1234567890 \
   -e INTERVAL=5000 \
   ghcr.io/dcodesdev/server-monitor
+```
+
+## Run locally
+
+Install the `sqlx-cli` by running the following command:
+
+```bash
+cargo install sqlx-cli --no-default-features --features sqlite
+```
+
+Run the following command to create the database:
+
+```bash
+mkdir -p db
+sqlx database create
+sqlx migrate run
+```
+
+Run the program in development mode:
+
+```bash
+cargo run
 ```
 
 ## Contributing

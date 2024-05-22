@@ -128,6 +128,9 @@ impl Db {
         // connect the db
         let pool = connect(verbose).await?;
 
+        // run the migrations
+        migrate(&pool).await?;
+
         let incident = IncidentModel::new(pool.clone());
         let endpoint = EndpointModel::new(pool.clone());
 
@@ -183,25 +186,37 @@ impl Db {
 }
 
 pub async fn connect(verbose: bool) -> anyhow::Result<Pool<Sqlite>> {
-    let url = "sqlite://db.sqlite";
+    let db_url = "sqlite:db/db.sqlite";
 
-    let pool = SqlitePool::connect(url).await?;
+    let pool = SqlitePool::connect(&db_url).await?;
 
     if verbose {
-        println!("Connected to the database {}", url);
+        println!("Connected to the database {}", &db_url);
     }
 
     Ok(pool)
 }
 
 fn create_db_if_not_exists() -> anyhow::Result<()> {
-    let exists = std::path::Path::new("db.sqlite").exists();
-
+    let exists = std::path::Path::new("db/db.sqlite").exists();
     if !exists {
-        // create a file db.sqlite
-        std::fs::write("db.sqlite", "")?;
-        sqlx::migrate!("./migrations/");
+        println!("Creating the database...");
+
+        std::fs::create_dir_all("db")?;
+        std::fs::write("db/db.sqlite", "")?;
+
+        println!("Database created!");
     }
+
+    Ok(())
+}
+
+async fn migrate(pool: &Conn) -> anyhow::Result<()> {
+    println!("Running the migrations...");
+
+    sqlx::migrate!("./migrations/").run(pool).await?;
+
+    println!("Migrations completed!");
 
     Ok(())
 }
