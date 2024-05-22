@@ -34,7 +34,7 @@ async fn main() {
     println!("Server monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);
 
-    server_update_cron(Arc::clone(&db), UPDATE_INTERVAL, Arc::clone(&bot));
+    server_update_cron(Arc::clone(&db), Arc::clone(&bot));
 
     loop {
         let handles: Vec<_> = urls
