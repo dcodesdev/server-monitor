@@ -2,6 +2,7 @@ use crate::{
     bot::{notify, NotifyOpts},
     db::{Db, Status},
     request::url_lookup,
+    UPDATE_INTERVAL,
 };
 use chrono::Local;
 use std::{sync::Arc, time::Duration};
@@ -23,7 +24,7 @@ async fn server_update_message(db: &Mutex<Db>) -> String {
         message.push_str("✅ No new incidents have happened so far.\n\n");
     }
 
-    for (url, value) in &db.endpoints {
+    db.endpoints.iter().for_each(|(url, value)| {
         let emoji = match value.status {
             Status::Up => "✅",
             Status::Down => "❌",
@@ -48,7 +49,7 @@ async fn server_update_message(db: &Mutex<Db>) -> String {
         };
 
         message.push_str(&format!("Up for: {}\n\n", uptime));
-    }
+    });
 
     message
 }
@@ -74,9 +75,9 @@ async fn incidents_update_message(db: &Mutex<Db>) -> String {
     message
 }
 
-pub fn server_update_cron(db: Arc<Mutex<Db>>, interval: u64, bot: Arc<Bot>) {
+pub fn server_update_cron(db: Arc<Mutex<Db>>, bot: Arc<Bot>) {
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(interval)).await;
+        tokio::time::sleep(Duration::from_millis(UPDATE_INTERVAL)).await;
         loop {
             let status_message = server_update_message(&db).await;
             let incidents_message = incidents_update_message(&db).await;
@@ -86,7 +87,7 @@ pub fn server_update_cron(db: Arc<Mutex<Db>>, interval: u64, bot: Arc<Bot>) {
                 eprintln!("Error sending notification: {}", err);
             }
 
-            tokio::time::sleep(Duration::from_millis(interval)).await;
+            tokio::time::sleep(Duration::from_millis(UPDATE_INTERVAL)).await;
         }
     });
 }
@@ -97,14 +98,17 @@ pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Mutex<Db>>) -> anyh
     let endpoint = db.get(url);
 
     if is_success {
-        if endpoint.status == Status::Down {
-            notify(&NotifyOpts {
-                message: format!("✅ {} is up again!", url),
-                bot,
-            })
-            .await?;
+        if endpoint.status != Status::Up {
+            db.set_status_up(url);
+
+            if endpoint.status == Status::Down {
+                notify(&NotifyOpts {
+                    message: format!("✅ {} is up again!", url),
+                    bot,
+                })
+                .await?;
+            }
         }
-        db.set_status_up(url);
     } else {
         if endpoint.status != Status::Down {
             notify(&NotifyOpts {
@@ -112,8 +116,8 @@ pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Mutex<Db>>) -> anyh
                 bot,
             })
             .await?;
+            db.set_status_down(url);
         }
-        db.set_status_down(url);
     }
 
     Ok(())
