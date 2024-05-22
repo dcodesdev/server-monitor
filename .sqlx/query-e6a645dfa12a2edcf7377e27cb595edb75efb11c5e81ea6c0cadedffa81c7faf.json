@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE endpoint SET status = 'UP', uptime_at = ? WHERE url = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e6a645dfa12a2edcf7377e27cb595edb75efb11c5e81ea6c0cadedffa81c7faf"
+}
