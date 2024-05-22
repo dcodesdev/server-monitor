@@ -30,8 +30,12 @@ async fn main() -> anyhow::Result<()> {
     let bot = Arc::new(create_bot());
     let db = Arc::new(Db::new().await?);
 
-    println!("Server monitor is running with the following settings:");
+    println!("\nServer monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);
+    println!("- URLs:");
+    urls.iter().for_each(|url| {
+        println!("  - {}", url);
+    });
 
     server_update_cron(Arc::clone(&db), Arc::clone(&bot));
 
