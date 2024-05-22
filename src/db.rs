@@ -124,7 +124,7 @@ impl Db {
         let verbose = false;
 
         // create the db file if not exists
-        create_db_if_not_exists(verbose)?;
+        create_db_if_not_exists()?;
 
         // connect the db
         let pool = connect(verbose).await?;
@@ -198,19 +198,13 @@ pub async fn connect(verbose: bool) -> anyhow::Result<Pool<Sqlite>> {
     Ok(pool)
 }
 
-fn create_db_if_not_exists(verbose: bool) -> anyhow::Result<()> {
+fn create_db_if_not_exists() -> anyhow::Result<()> {
     let exists = std::path::Path::new("db/db.sqlite").exists();
     if !exists {
-        if verbose {
-            println!("Creating the database...");
-        }
+        println!("Creating the database...");
 
         std::fs::create_dir_all("db")?;
         std::fs::write("db/db.sqlite", "")?;
-
-        if verbose {
-            println!("Database created!");
-        }
     }
 
     Ok(())
