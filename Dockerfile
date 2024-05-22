@@ -12,7 +12,7 @@ COPY ./.sqlx/ ./.sqlx
 
 ENV DATABASE_URL=sqlite://db/db.sqlite
 
-RUN mkdir -p db/
+RUN mkdir db/
 RUN sqlx db create
 RUN sqlx migrate run
 RUN cargo build --release

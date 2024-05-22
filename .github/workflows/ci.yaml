@@ -24,6 +24,7 @@ jobs:
       - name: Set up SQLX
         run: |
           cargo install sqlx-cli --no-default-features --features sqlite
+          mkdir db
           sqlx db create
           sqlx migrate run
 

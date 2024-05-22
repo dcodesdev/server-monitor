@@ -58,7 +58,7 @@ cargo install sqlx-cli --no-default-features --features sqlite
 Run the following command to create the database:
 
 ```bash
-mkdir -p db
+mkdir db
 sqlx database create
 sqlx migrate run
 ```
