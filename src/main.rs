@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         println!("  - {}", url);
     });
 
-    server_update_cron(Arc::clone(&db), Arc::clone(&bot));
+    server_update_cron(Arc::clone(&db), Arc::clone(&bot)).await?;
 
     loop {
         let handles: Vec<_> = urls

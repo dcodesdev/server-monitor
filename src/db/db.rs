@@ -1,7 +1,12 @@
 use chrono::Local;
-use sqlx::{Pool, Sqlite, SqlitePool};
+use sqlx::{Pool, Sqlite};
 
-use super::{endpoint::EndpointModel, incident::IncidentModel};
+use super::{
+    endpoint::EndpointModel,
+    helpers::{connect, create_db_if_not_exists, migrate},
+    incident::IncidentModel,
+    metadata::MetadataModel,
+};
 
 pub type Conn = Pool<Sqlite>;
 
@@ -11,6 +16,7 @@ pub struct Db {
     pub pool: Conn,
     pub endpoint: EndpointModel,
     pub incident: IncidentModel,
+    pub metadata: MetadataModel,
 }
 
 impl Db {
@@ -28,12 +34,14 @@ impl Db {
 
         let incident = IncidentModel::new(pool.clone());
         let endpoint = EndpointModel::new(pool.clone());
+        let metadata = MetadataModel::new(pool.clone()).await?;
 
         let db = Self {
             verbose,
             pool,
             incident,
             endpoint,
+            metadata,
         };
 
         Ok(db)
@@ -78,42 +86,4 @@ impl Db {
 
         Ok(())
     }
-}
-
-pub async fn connect(verbose: bool) -> anyhow::Result<Pool<Sqlite>> {
-    let db_url = "sqlite:db/db.sqlite";
-
-    let pool = SqlitePool::connect(&db_url).await?;
-
-    if verbose {
-        println!("Connected to the database {}", &db_url);
-    }
-
-    Ok(pool)
-}
-
-fn create_db_if_not_exists() -> anyhow::Result<()> {
-    let exists = std::path::Path::new("db/db.sqlite").exists();
-    if !exists {
-        println!("Creating the database...");
-
-        std::fs::create_dir_all("db")?;
-        std::fs::write("db/db.sqlite", "")?;
-    }
-
-    Ok(())
-}
-
-async fn migrate(pool: &Conn, verbose: bool) -> anyhow::Result<()> {
-    if verbose {
-        println!("Running the migrations...");
-    }
-
-    sqlx::migrate!("./migrations/").run(pool).await?;
-
-    if verbose {
-        println!("Migrations completed!");
-    }
-
-    Ok(())
 }

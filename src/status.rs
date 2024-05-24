@@ -74,9 +74,10 @@ async fn incidents_update_message(db: &Arc<Db>) -> anyhow::Result<String> {
     Ok(message)
 }
 
-pub fn server_update_cron(db: Arc<Db>, bot: Arc<Bot>) {
+pub async fn server_update_cron(db: Arc<Db>, bot: Arc<Bot>) -> anyhow::Result<()> {
+    let interval = db.metadata.interval().await?;
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(UPDATE_INTERVAL)).await;
+        tokio::time::sleep(Duration::from_millis(interval)).await;
         loop {
             let status_message = match server_update_message(&db).await {
                 Ok(msg) => msg,
@@ -96,11 +97,17 @@ pub fn server_update_cron(db: Arc<Db>, bot: Arc<Bot>) {
 
             if let Err(err) = notify(&NotifyOpts { bot: &bot, message }).await {
                 eprintln!("Error sending notification: {}", err);
+            } else {
+                if let Err(err) = db.metadata.update_last_sent_at().await {
+                    eprintln!("Error updating metadata: {}", err);
+                }
             }
 
             tokio::time::sleep(Duration::from_millis(UPDATE_INTERVAL)).await;
         }
     });
+
+    Ok(())
 }
 
 pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
