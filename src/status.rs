@@ -1,6 +1,6 @@
 use crate::{
     bot::{notify, NotifyOpts},
-    db::{Db, Status},
+    db::{endpoint::Status, Db},
     request::url_lookup,
     UPDATE_INTERVAL,
 };
