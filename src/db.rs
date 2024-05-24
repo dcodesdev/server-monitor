@@ -10,9 +10,36 @@ pub struct Db {
 }
 
 #[derive(Debug, Clone)]
+pub struct Url(String);
+
+impl Url {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn strip_prefix(&self) -> &str {
+        let url = self.as_str();
+
+        if url.starts_with("http://") {
+            &url[7..]
+        } else if url.starts_with("https://") {
+            &url[8..]
+        } else {
+            url
+        }
+    }
+}
+
+impl From<String> for Url {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Endpoint {
     pub id: String,
-    pub url: String,
+    pub url: Url,
     pub status: Status,
     pub uptime_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
@@ -90,7 +117,7 @@ impl EndpointModel {
 
                 let endpoint = Endpoint {
                     id: endpoint.id,
-                    url: endpoint.url,
+                    url: endpoint.url.into(),
                     status: Status::Pending,
                     uptime_at: None,
                     created_at: endpoint.created_at,

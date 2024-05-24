@@ -30,7 +30,9 @@ async fn server_update_message(db: &Db) -> anyhow::Result<String> {
 
         message.push_str(&format!(
             "URL: {}\nStatus: {} {:?}\n",
-            value.url, emoji, value.status
+            value.url.strip_prefix(),
+            emoji,
+            value.status
         ));
 
         let uptime = match value.uptime_at {

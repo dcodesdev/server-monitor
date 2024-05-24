@@ -49,6 +49,12 @@ docker run -d \
 
 ## Run locally
 
+Add `DATABASE_URL` to your `.env` file:
+
+```bash
+DATABASE_URL=sqlite://db/database.db
+```
+
 Install the `sqlx-cli` by running the following command:
 
 ```bash
