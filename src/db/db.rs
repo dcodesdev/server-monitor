@@ -58,10 +58,6 @@ impl Db {
         .execute(&self.pool)
         .await?;
 
-        sqlx::query!("DELETE FROM incident WHERE url = ?", url)
-            .execute(&self.pool)
-            .await?;
-
         Ok(())
     }
 

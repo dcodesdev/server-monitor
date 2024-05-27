@@ -6,7 +6,7 @@ mod status;
 use bot::create_bot;
 use db::Db;
 use futures::future;
-use status::{check_url_status, server_update_cron};
+use status::{check_url_status, create_server_update_cron};
 use std::sync::Arc;
 
 const DEFAULT_INTERVAL: u64 = 1000 * 60; // 1 minute
@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         println!("  - {}", url);
     });
 
-    server_update_cron(Arc::clone(&db), Arc::clone(&bot)).await?;
+    create_server_update_cron(Arc::clone(&db), Arc::clone(&bot)).await?;
 
     loop {
         let handles: Vec<_> = urls

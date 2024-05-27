@@ -53,7 +53,7 @@ async fn server_update_message(db: &Db) -> anyhow::Result<String> {
     Ok(message)
 }
 
-async fn incidents_update_message(db: &Arc<Db>) -> anyhow::Result<String> {
+async fn incidents_update_message(db: &Arc<Db>) -> anyhow::Result<(String, Vec<String>)> {
     let mut message = String::new();
 
     if !db.incident.is_empty().await? {
@@ -71,41 +71,42 @@ async fn incidents_update_message(db: &Arc<Db>) -> anyhow::Result<String> {
         }
     }
 
-    Ok(message)
+    let ids = incidents
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
+
+    Ok((message, ids))
 }
 
-pub async fn server_update_cron(db: Arc<Db>, bot: Arc<Bot>) -> anyhow::Result<()> {
+pub async fn create_server_update_cron(db: Arc<Db>, bot: Arc<Bot>) -> anyhow::Result<()> {
     let interval = db.metadata.interval().await?;
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(interval)).await;
         loop {
-            let status_message = match server_update_message(&db).await {
-                Ok(msg) => msg,
-                Err(err) => {
-                    eprintln!("Error getting status message: {}", err);
-                    continue;
-                }
-            };
-            let incidents_message = match incidents_update_message(&db).await {
-                Ok(msg) => msg,
-                Err(err) => {
-                    eprintln!("Error getting incidents message: {}", err);
-                    continue;
-                }
-            };
-            let message = format!("{}{}", status_message, incidents_message);
+            let result = server_update(&db, &bot).await;
 
-            if let Err(err) = notify(&NotifyOpts { bot: &bot, message }).await {
-                eprintln!("Error sending notification: {}", err);
-            } else {
-                if let Err(err) = db.metadata.update_last_sent_at().await {
-                    eprintln!("Error updating metadata: {}", err);
-                }
+            match result {
+                Ok(_) => {}
+                Err(e) => eprintln!("Server update Error: {}", e),
             }
 
             tokio::time::sleep(Duration::from_millis(UPDATE_INTERVAL)).await;
         }
     });
+
+    Ok(())
+}
+
+async fn server_update(db: &Arc<Db>, bot: &Arc<Bot>) -> anyhow::Result<()> {
+    let status_message = server_update_message(&db).await?;
+    let (incidents_message, ids) = incidents_update_message(&db).await?;
+    let message = format!("{}{}", incidents_message, status_message);
+    let incidents: Vec<_> = ids.iter().map(|id| id.as_ref()).collect();
+
+    notify(&NotifyOpts { bot: &bot, message }).await?;
+    db.metadata.update_last_sent_at().await?;
+    db.incident.delete_many(incidents).await?;
 
     Ok(())
 }
