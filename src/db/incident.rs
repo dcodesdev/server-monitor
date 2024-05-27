@@ -1,4 +1,5 @@
 use chrono::NaiveDateTime;
+use sqlx::sqlite::SqliteQueryResult;
 
 use super::Conn;
 
@@ -34,5 +35,22 @@ impl IncidentModel {
             .await?;
 
         Ok(incidents.is_empty())
+    }
+
+    pub async fn delete_many(&self, ids: Vec<&str>) -> anyhow::Result<SqliteQueryResult> {
+        let query = format!(
+            "DELETE FROM incident WHERE id IN ({})",
+            ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ")
+        );
+
+        let mut q = sqlx::query(&query);
+
+        for id in ids {
+            q = q.bind(id);
+        }
+
+        let result = q.execute(&self.pool).await?;
+
+        Ok(result)
     }
 }
