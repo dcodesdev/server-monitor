@@ -101,7 +101,7 @@ pub async fn create_server_update_cron(db: Arc<Db>, bot: Arc<Bot>) -> anyhow::Re
 async fn server_update(db: &Arc<Db>, bot: &Arc<Bot>) -> anyhow::Result<()> {
     let status_message = server_update_message(&db).await?;
     let (incidents_message, ids) = incidents_update_message(&db).await?;
-    let message = format!("{}{}", status_message, incidents_message);
+    let message = format!("{}{}", incidents_message, status_message);
     let incidents: Vec<_> = ids.iter().map(|id| id.as_ref()).collect();
 
     notify(&NotifyOpts { bot: &bot, message }).await?;
