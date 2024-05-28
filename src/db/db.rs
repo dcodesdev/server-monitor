@@ -6,6 +6,7 @@ use super::{
     helpers::{connect, create_db_if_not_exists, migrate},
     incident::IncidentModel,
     metadata::MetadataModel,
+    url::Url,
 };
 
 pub type Conn = Pool<Sqlite>;
@@ -61,19 +62,20 @@ impl Db {
         Ok(())
     }
 
-    pub async fn set_status_down(&self, url: &str) -> anyhow::Result<()> {
+    pub async fn set_status_down(&self, url: &Url) -> anyhow::Result<()> {
+        let url_str = url.as_str();
         sqlx::query!(
             "UPDATE endpoint SET status = 'DOWN', uptime_at = NULL WHERE url = ?",
-            url
+            url_str
         )
         .execute(&self.pool)
         .await?;
 
-        let message = format!("{} was down!", &url);
+        let message = format!("{} was down!", url.strip_prefix());
         let created_at = Local::now();
         sqlx::query!(
             "INSERT INTO incident (url, message, created_at) VALUES (?, ?, ?)",
-            url,
+            url_str,
             message,
             created_at
         )
