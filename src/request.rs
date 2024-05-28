@@ -9,7 +9,7 @@ pub async fn url_lookup(url: &str) -> anyhow::Result<bool> {
         .build()?;
 
     match client.get(url).send().await {
-        Err(_) => return Ok(false),
+        Err(_) => Ok(false),
         Ok(res) => {
             let status = res.status();
 
@@ -17,7 +17,7 @@ pub async fn url_lookup(url: &str) -> anyhow::Result<bool> {
                 return Ok(true);
             }
 
-            return Ok(false);
+            Ok(false)
         }
     }
 }
