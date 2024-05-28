@@ -15,7 +15,8 @@ cargo build --release
 - `TELOXIDE_TOKEN` - Your telegram bot token.
 - `TELEGRAM_CHAT_ID` - Your telegram chat id.
 - `URLS` - Comma separated list of urls to monitor.
-- `INTERVAL` - Interval in milliseconds to check the urls.
+- `INTERVAL` (optional) - Interval in milliseconds to check the urls.
+- `TIMEOUT` (optional) - Timeout in seconds for each request.
 
 Here's an example:
 
