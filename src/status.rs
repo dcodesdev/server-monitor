@@ -35,19 +35,14 @@ async fn server_update_message(db: &Db) -> anyhow::Result<String> {
             endpoint.status
         ));
 
-        let uptime = match endpoint.uptime_at {
-            Some(uptime_at) => {
-                let now = Local::now().naive_local();
-                let duration = now.signed_duration_since(uptime_at);
-                let days = duration.num_days();
-                let hours = duration.num_hours() % 24;
+        if let Some(uptime_at) = endpoint.uptime_at {
+            let now = Local::now().naive_local();
+            let duration = now.signed_duration_since(uptime_at);
+            let days = duration.num_days();
+            let hours = duration.num_hours() % 24;
 
-                format!("{:?} days and {:?} hours", days, hours)
-            }
-            None => "Uptime: N/A".to_string(),
-        };
-
-        message.push_str(&format!("Up for: {}\n", uptime));
+            message.push_str(&format!("Uptime: {:?} days and {:?} hours\n", days, hours));
+        }
 
         let max_latency = endpoint.max_latency;
 
