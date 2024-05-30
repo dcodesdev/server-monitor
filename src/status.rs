@@ -1,6 +1,6 @@
 use crate::{
     bot::{notify, NotifyOpts},
-    db::{endpoint::Status, Db},
+    db::{endpoint::Status, url::Url, Db},
     request::url_lookup,
     UPDATE_INTERVAL,
 };
@@ -21,8 +21,8 @@ async fn server_update_message(db: &Db) -> anyhow::Result<String> {
         message.push_str("✅ No new incidents have happened so far.\n\n");
     }
 
-    endpoints.iter().for_each(|value| {
-        let emoji = match value.status {
+    for endpoint in endpoints.iter() {
+        let emoji = match endpoint.status {
             Status::Up => "✅",
             Status::Down => "❌",
             Status::Pending => "🕒",
@@ -30,25 +30,32 @@ async fn server_update_message(db: &Db) -> anyhow::Result<String> {
 
         message.push_str(&format!(
             "URL: {}\nStatus: {} {:?}\n",
-            value.url.strip_prefix(),
+            endpoint.url.strip_prefix(),
             emoji,
-            value.status
+            endpoint.status
         ));
 
-        let uptime = match value.uptime_at {
-            Some(uptime_at) => {
-                let now = Local::now().naive_local();
-                let duration = now.signed_duration_since(uptime_at);
-                let days = duration.num_days();
-                let hours = duration.num_hours() % 24;
+        if let Some(uptime_at) = endpoint.uptime_at {
+            let now = Local::now().naive_local();
+            let duration = now.signed_duration_since(uptime_at);
+            let days = duration.num_days();
+            let hours = duration.num_hours() % 24;
 
-                format!("{:?} days and {:?} hours", days, hours)
-            }
-            None => "Uptime: N/A".to_string(),
-        };
+            message.push_str(&format!("Uptime: {:?} days and {:?} hours\n", days, hours));
+        }
 
-        message.push_str(&format!("Up for: {}\n\n", uptime));
-    });
+        let max_latency = endpoint.max_latency;
+
+        if let Some(max_latency) = max_latency {
+            message.push_str(&format!("Max latency: {}ms\n", max_latency));
+        }
+
+        message.push_str("\n");
+
+        db.endpoint.reset_max_latency(endpoint.url.as_str()).await?;
+    }
+
+    message.push_str("\n");
 
     Ok(message)
 }
@@ -68,6 +75,8 @@ async fn incidents_update_message(db: &Arc<Db>) -> anyhow::Result<(String, Vec<S
 
         if !is_last {
             message.push_str("\n");
+        } else {
+            message.push_str("\n\n");
         }
     }
 
@@ -111,19 +120,19 @@ async fn server_update(db: &Arc<Db>, bot: &Arc<Bot>) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
-    let result = tokio::join!(url_lookup(url), db.endpoint.get(url));
+pub async fn check_url_status(url: &Url, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
+    let result = tokio::join!(url_lookup(url, db), db.endpoint.get(url.as_str()));
 
     let is_success = result.0?;
     let endpoint = result.1?;
 
     if is_success {
         if endpoint.status != Status::Up {
-            db.set_status_up(url).await?;
+            db.set_status_up(url.as_str()).await?;
 
             if endpoint.status == Status::Down {
                 notify(&NotifyOpts {
-                    message: format!("✅ {} is up again!", url),
+                    message: format!("✅ {} is up again!", url.as_str()),
                     bot,
                 })
                 .await?;
@@ -132,7 +141,7 @@ pub async fn check_url_status(url: &str, bot: &Bot, db: &Arc<Db>) -> anyhow::Res
     } else {
         if endpoint.status != Status::Down {
             notify(&NotifyOpts {
-                message: format!("❌ {} is down!", url),
+                message: format!("❌ {} is down!", url.as_str()),
                 bot,
             })
             .await?;

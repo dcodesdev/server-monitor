@@ -1,27 +1,28 @@
-use chrono::{Local, NaiveDateTime};
-
 use crate::{db::Conn, UPDATE_INTERVAL};
+use chrono::{Local, NaiveDateTime};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct MetadataModel {
-    pool: Conn,
+    pool: Arc<Conn>,
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct Metadata {
     pub id: i64,
     pub last_update_sent_at: Option<NaiveDateTime>,
 }
 
 impl MetadataModel {
-    pub async fn new(pool: Conn) -> anyhow::Result<Self> {
+    pub async fn new(pool: Arc<Conn>) -> anyhow::Result<Self> {
         let metadata = sqlx::query_as!(Metadata, "SELECT * FROM metadata;")
-            .fetch_optional(&pool)
+            .fetch_optional(&*pool)
             .await?;
 
         if metadata.is_none() {
             sqlx::query!("INSERT INTO metadata (last_update_sent_at) VALUES (NULL);")
-                .execute(&pool)
+                .execute(&*pool)
                 .await?;
         }
 
@@ -30,7 +31,7 @@ impl MetadataModel {
 
     pub async fn get(&self) -> anyhow::Result<Metadata> {
         let metadata = sqlx::query_as!(Metadata, "SELECT * FROM metadata;")
-            .fetch_one(&self.pool)
+            .fetch_one(&*self.pool)
             .await?;
 
         Ok(metadata)
@@ -40,7 +41,7 @@ impl MetadataModel {
         let now = Local::now().naive_local();
 
         sqlx::query!("UPDATE metadata SET last_update_sent_at = ?;", now)
-            .execute(&self.pool)
+            .execute(&*self.pool)
             .await?;
 
         Ok(())

@@ -4,7 +4,7 @@ mod request;
 mod status;
 
 use bot::create_bot;
-use db::Db;
+use db::{url::Url, Db};
 use futures::future;
 use status::{check_url_status, create_server_update_cron};
 use std::sync::Arc;
@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
         let handles: Vec<_> = urls
             .iter()
             .map(|url| {
-                let url = url.clone();
+                let url = Url::from(url.clone());
                 let bot = Arc::clone(&bot);
                 let db = Arc::clone(&db);
                 tokio::spawn(async move { check_url_status(&url, &bot, &db).await })
