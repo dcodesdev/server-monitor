@@ -1,5 +1,6 @@
 use chrono::Local;
 use sqlx::{Pool, Sqlite};
+use std::sync::Arc;
 
 use super::{
     endpoint::EndpointModel,
@@ -14,7 +15,7 @@ pub type Conn = Pool<Sqlite>;
 #[derive(Debug)]
 pub struct Db {
     pub verbose: bool,
-    pub pool: Conn,
+    pub pool: Arc<Conn>,
     pub endpoint: EndpointModel,
     pub incident: IncidentModel,
     pub metadata: MetadataModel,
@@ -28,14 +29,14 @@ impl Db {
         create_db_if_not_exists()?;
 
         // connect the db
-        let pool = connect(verbose).await?;
+        let pool = Arc::new(connect(verbose).await?);
 
         // run the migrations
         migrate(&pool, verbose).await?;
 
-        let incident = IncidentModel::new(pool.clone());
-        let endpoint = EndpointModel::new(pool.clone());
-        let metadata = MetadataModel::new(pool.clone()).await?;
+        let incident = IncidentModel::new(Arc::clone(&pool));
+        let endpoint = EndpointModel::new(Arc::clone(&pool));
+        let metadata = MetadataModel::new(Arc::clone(&pool)).await?;
 
         let db = Self {
             verbose,
@@ -56,8 +57,12 @@ impl Db {
             now,
             url
         )
-        .execute(&self.pool)
+        .execute(&*self.pool)
         .await?;
+
+        if self.verbose {
+            println!("{} is up!", url);
+        }
 
         Ok(())
     }
@@ -68,7 +73,7 @@ impl Db {
             "UPDATE endpoint SET status = 'DOWN', uptime_at = NULL WHERE url = ?",
             url_str
         )
-        .execute(&self.pool)
+        .execute(&*self.pool)
         .await?;
 
         let message = format!("{} was down!", url.strip_prefix());
@@ -79,8 +84,12 @@ impl Db {
             message,
             created_at
         )
-        .execute(&self.pool)
+        .execute(&*self.pool)
         .await?;
+
+        if self.verbose {
+            println!("{}", message);
+        }
 
         Ok(())
     }

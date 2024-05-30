@@ -1,9 +1,11 @@
 use chrono::NaiveDateTime;
 use sqlx::sqlite::SqliteQueryResult;
+use std::sync::Arc;
 
 use super::Conn;
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct Incident {
     pub id: String,
     pub url: String,
@@ -13,17 +15,17 @@ pub struct Incident {
 
 #[derive(Debug)]
 pub struct IncidentModel {
-    pool: Conn,
+    pool: Arc<Conn>,
 }
 
 impl IncidentModel {
-    pub fn new(pool: Conn) -> Self {
+    pub fn new(pool: Arc<Conn>) -> Self {
         Self { pool }
     }
 
     pub async fn get_all(&self) -> anyhow::Result<Vec<Incident>> {
         let incidents = sqlx::query_as!(Incident, "SELECT * FROM incident")
-            .fetch_all(&self.pool)
+            .fetch_all(&*self.pool)
             .await?;
 
         Ok(incidents)
@@ -31,7 +33,7 @@ impl IncidentModel {
 
     pub async fn is_empty(&self) -> anyhow::Result<bool> {
         let incidents = sqlx::query!("SELECT id FROM incident")
-            .fetch_all(&self.pool)
+            .fetch_all(&*self.pool)
             .await?;
 
         Ok(incidents.is_empty())
@@ -49,7 +51,7 @@ impl IncidentModel {
             q = q.bind(id);
         }
 
-        let result = q.execute(&self.pool).await?;
+        let result = q.execute(&*self.pool).await?;
 
         Ok(result)
     }
