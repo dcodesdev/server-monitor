@@ -22,7 +22,7 @@ pub struct Db {
 }
 
 impl Db {
-    pub async fn new() -> anyhow::Result<Self> {
+    pub async fn new(urls: &Vec<Url>) -> anyhow::Result<Self> {
         let verbose = false;
 
         // create the db file if not exists
@@ -35,7 +35,7 @@ impl Db {
         migrate(&pool, verbose).await?;
 
         let incident = IncidentModel::new(Arc::clone(&pool));
-        let endpoint = EndpointModel::new(Arc::clone(&pool));
+        let endpoint = EndpointModel::new(Arc::clone(&pool), urls).await?;
         let metadata = MetadataModel::new(Arc::clone(&pool)).await?;
 
         let db = Self {

@@ -1731,12 +1731,11 @@ dependencies = [
 
 [[package]]
 name = "server-monitor"
-version = "0.1.0"
+version = "0.1.10"
 dependencies = [
  "anyhow",
  "chrono",
  "dotenvy",
- "futures",
  "reqwest 0.12.4",
  "sqlx",
  "teloxide",
