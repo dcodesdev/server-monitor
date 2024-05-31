@@ -1,11 +1,9 @@
 mod bot;
 mod db;
-mod request;
 mod status;
 
 use bot::create_bot;
 use db::{url::Url, Db};
-use futures::future;
 use status::{check_url_status, create_server_update_cron};
 use std::sync::Arc;
 
@@ -16,10 +14,10 @@ const UPDATE_INTERVAL: u64 = 1000 * 60 * 60 * 24; // 24 hours
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
-    let urls: Vec<String> = std::env::var("URLS")
+    let urls: Vec<Url> = std::env::var("URLS")
         .expect("URLS must be set")
         .split(',')
-        .map(|item| item.to_string())
+        .map(|item| Url::from(item.to_string()))
         .collect();
 
     let interval: u64 = std::env::var("INTERVAL")
@@ -28,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
         .expect("INTERVAL must be a number");
 
     let bot = Arc::new(create_bot());
-    let db = Arc::new(Db::new().await?);
+    let db = Arc::new(Db::new(&urls).await?);
 
     println!("\nServer monitor is running with the following settings:");
     println!("\n- Interval: {}ms", interval);
@@ -40,27 +38,19 @@ async fn main() -> anyhow::Result<()> {
     create_server_update_cron(Arc::clone(&db), Arc::clone(&bot)).await?;
 
     loop {
-        let handles: Vec<_> = urls
-            .iter()
-            .map(|url| {
-                let url = Url::from(url.clone());
-                let bot = Arc::clone(&bot);
-                let db = Arc::clone(&db);
-                tokio::spawn(async move { check_url_status(&url, &bot, &db).await })
-            })
-            .collect();
+        urls.iter().for_each(|url| {
+            let url = url.clone(); // TODO: use Arc::clone instead
+            let bot = Arc::clone(&bot);
+            let db = Arc::clone(&db);
 
-        let results: Vec<_> = future::join_all(handles)
-            .await
-            .into_iter()
-            .map(|res| res.unwrap())
-            .collect();
+            tokio::spawn(async move {
+                let result = check_url_status(&url, &bot, &db).await;
 
-        for result in results {
-            if let Err(e) = result {
-                eprintln!("Error: {}", e);
-            }
-        }
+                if let Err(e) = result {
+                    eprintln!("Error: {}", e);
+                }
+            });
+        });
 
         tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
     }

@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use std::{fmt::Display, ops::Deref};
+
+#[derive(Debug, Clone)]
 pub struct Url(String);
 
 impl Url {
@@ -22,5 +24,19 @@ impl Url {
 impl From<String> for Url {
     fn from(s: String) -> Self {
         Self(s)
+    }
+}
+
+impl Deref for Url {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Display for Url {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }

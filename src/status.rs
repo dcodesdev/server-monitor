@@ -1,7 +1,6 @@
 use crate::{
     bot::{notify, NotifyOpts},
     db::{endpoint::Status, url::Url, Db},
-    request::url_lookup,
     UPDATE_INTERVAL,
 };
 use chrono::Local;
@@ -121,33 +120,39 @@ async fn server_update(db: &Arc<Db>, bot: &Arc<Bot>) -> anyhow::Result<()> {
 }
 
 pub async fn check_url_status(url: &Url, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
-    let result = tokio::join!(url_lookup(url, db), db.endpoint.get(url.as_str()));
+    let is_checking = db.endpoint.is_checking(url).await?;
 
-    let is_success = result.0?;
-    let endpoint = result.1?;
+    if is_checking {
+        return Ok(());
+    }
 
-    if is_success {
-        if endpoint.status != Status::Up {
-            db.set_status_up(url.as_str()).await?;
+    // set checking to true
+    db.endpoint.set_checking(url, true).await?;
 
-            if endpoint.status == Status::Down {
-                notify(&NotifyOpts {
-                    message: format!("✅ {} is up again!", url.as_str()),
-                    bot,
-                })
-                .await?;
-            }
-        }
-    } else {
-        if endpoint.status != Status::Down {
+    let is_success = db.endpoint.url_lookup(url).await?;
+    let endpoint = db.endpoint.get(url).await?;
+
+    if is_success && endpoint.status != Status::Up {
+        db.set_status_up(url).await?;
+
+        if endpoint.status == Status::Down {
             notify(&NotifyOpts {
-                message: format!("❌ {} is down!", url.as_str()),
+                message: format!("✅ {} is up again!", url),
                 bot,
             })
             .await?;
-            db.set_status_down(url).await?;
         }
+    } else if endpoint.status != Status::Down {
+        notify(&NotifyOpts {
+            message: format!("❌ {} is down!", url),
+            bot,
+        })
+        .await?;
+        db.set_status_down(url).await?;
     }
+
+    // set checking to false
+    db.endpoint.set_checking(url, false).await?;
 
     Ok(())
 }
