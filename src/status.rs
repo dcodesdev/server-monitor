@@ -136,7 +136,7 @@ pub async fn check_url_status(url: &Url, bot: &Bot, db: &Arc<Db>) -> anyhow::Res
         db.set_status_up(url).await?;
         if endpoint.status == Status::Down {
             notify(&NotifyOpts {
-                message: format!("✅ {} is up again!", url),
+                message: format!("✅ {} is up again!", url.strip_prefix()),
                 bot,
             })
             .await?;
@@ -144,7 +144,7 @@ pub async fn check_url_status(url: &Url, bot: &Bot, db: &Arc<Db>) -> anyhow::Res
     } else if !is_success && endpoint.status != Status::Down {
         db.set_status_down(url).await?;
         notify(&NotifyOpts {
-            message: format!("❌ {} is down!", url),
+            message: format!("❌ {} is down!", url.strip_prefix()),
             bot,
         })
         .await?;
