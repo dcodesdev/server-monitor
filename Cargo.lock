@@ -1736,6 +1736,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "dotenvy",
+ "rand",
  "reqwest 0.12.4",
  "sqlx",
  "teloxide",
