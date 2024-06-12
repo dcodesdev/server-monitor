@@ -1,11 +1,14 @@
 mod bot;
+mod constants;
 mod db;
 mod status;
 
 use bot::create_bot;
+use constants::get_interval;
 use db::{url::Url, Db};
 use status::{check_url_status, create_server_update_cron};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
+use teloxide::Bot;
 
 const DEFAULT_INTERVAL: u64 = 1000 * 60; // 1 minute
 const UPDATE_INTERVAL: u64 = 1000 * 60 * 60 * 24; // 24 hours
@@ -20,11 +23,7 @@ async fn main() -> anyhow::Result<()> {
         .map(|item| Url::from(item.to_string()))
         .collect();
 
-    let interval: u64 = std::env::var("INTERVAL")
-        .unwrap_or_else(|_| DEFAULT_INTERVAL.to_string())
-        .parse()
-        .expect("INTERVAL must be a number");
-
+    let interval = get_interval();
     let bot = Arc::new(create_bot());
     let db = Arc::new(Db::new(&urls).await?);
 
@@ -37,21 +36,34 @@ async fn main() -> anyhow::Result<()> {
 
     create_server_update_cron(Arc::clone(&db), Arc::clone(&bot)).await?;
 
-    loop {
-        urls.iter().for_each(|url| {
-            let url = url.clone(); // TODO: use Arc::clone instead
-            let bot = Arc::clone(&bot);
-            let db = Arc::clone(&db);
+    let mut handles = Vec::new();
+    urls.iter().for_each(|url| {
+        let bot = Arc::clone(&bot);
+        let db = Arc::clone(&db);
+        let url = url.clone();
 
-            tokio::spawn(async move {
-                let result = check_url_status(&url, &bot, &db).await;
-
-                if let Err(e) = result {
-                    eprintln!("Error: {}", e);
-                }
-            });
+        let handle = tokio::spawn(async move {
+            create_url_check_cron(&url, bot, db).await.unwrap();
         });
 
-        tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
+        handles.push(handle);
+    });
+
+    futures::future::join_all(handles).await;
+
+    Ok(())
+}
+
+async fn create_url_check_cron(url: &Url, bot: Arc<Bot>, db: Arc<Db>) -> anyhow::Result<()> {
+    let interval = get_interval();
+
+    loop {
+        let result = check_url_status(&url, &bot, &db).await;
+
+        if let Err(e) = result {
+            eprintln!("Error: {}", e);
+        }
+
+        tokio::time::sleep(Duration::from_millis(interval)).await;
     }
 }
