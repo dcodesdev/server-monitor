@@ -17,6 +17,7 @@ cargo build --release
 - `URLS` - Comma separated list of urls to monitor.
 - `INTERVAL` (optional) - Interval in milliseconds to check the urls.
 - `TIMEOUT` (optional) - Timeout in seconds for each request.
+- `TRIES` (optional) - Number of tries before marking the url as down (default: `2`)
 
 Here's an example:
 
@@ -25,6 +26,8 @@ TELOXIDE_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 TELEGRAM_CHAT_ID=1234567890
 URLS=https://google.com,https://bing.com,https://github.com
 INTERVAL=5000
+TIMEOUT=5
+TRIES=2
 ```
 
 ## Run the program
