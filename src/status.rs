@@ -120,7 +120,7 @@ async fn server_update(db: &Arc<Db>, bot: &Arc<Bot>) -> anyhow::Result<()> {
 }
 
 pub async fn check_url_status(url: &Url, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
-    let is_success = db.endpoint.url_lookup(url).await?;
+    let is_success = db.endpoint.lookup(url).await?;
     let endpoint = db.endpoint.get(url).await?;
 
     if is_success && endpoint.status != Status::Up {

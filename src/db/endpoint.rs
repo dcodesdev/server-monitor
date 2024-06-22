@@ -107,7 +107,7 @@ impl EndpointModel {
 
     /// Returns `true` if the URL is up
     /// Returns `false` if down
-    pub async fn url_lookup(&self, url: &Url) -> anyhow::Result<bool> {
+    pub async fn lookup(&self, url: &Url) -> anyhow::Result<bool> {
         let start = std::time::Instant::now();
         let res = self.client.get(url.as_str()).send().await;
         let latency = start.elapsed().as_millis() as i64;
