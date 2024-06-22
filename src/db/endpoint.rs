@@ -1,7 +1,6 @@
 use chrono::NaiveDateTime;
 use reqwest::StatusCode;
-use std::{collections::HashMap, sync::Arc, time::Duration};
-use tokio::sync::Mutex;
+use std::{sync::Arc, time::Duration};
 
 use super::{url::Url, Conn};
 
@@ -22,7 +21,6 @@ pub struct Endpoint {
 pub struct EndpointModel {
     pool: Arc<Conn>,
     client: reqwest::Client,
-    checking: Arc<Mutex<HashMap<String, bool>>>,
 }
 
 impl EndpointModel {
@@ -56,13 +54,7 @@ impl EndpointModel {
             .await?;
         }
 
-        let checking = Arc::new(Mutex::new(HashMap::new()));
-
-        Ok(Self {
-            pool,
-            client,
-            checking,
-        })
+        Ok(Self { pool, client })
     }
 
     pub async fn get_all(&self) -> anyhow::Result<Vec<Endpoint>> {
@@ -111,20 +103,6 @@ impl EndpointModel {
             .await?;
 
         Ok(())
-    }
-
-    pub async fn set_checking(&self, url: &str, checking: bool) -> anyhow::Result<()> {
-        let mut map = self.checking.lock().await;
-        map.insert(url.to_string(), checking);
-
-        Ok(())
-    }
-
-    pub async fn is_checking(&self, url: &str) -> anyhow::Result<bool> {
-        let map = self.checking.lock().await;
-        let checking = map.get(url).unwrap_or(&false);
-
-        Ok(*checking)
     }
 
     /// Returns `true` if the URL is up

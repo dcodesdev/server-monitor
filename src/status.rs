@@ -120,15 +120,6 @@ async fn server_update(db: &Arc<Db>, bot: &Arc<Bot>) -> anyhow::Result<()> {
 }
 
 pub async fn check_url_status(url: &Url, bot: &Bot, db: &Arc<Db>) -> anyhow::Result<()> {
-    let is_checking = db.endpoint.is_checking(url).await?;
-
-    if is_checking {
-        return Ok(());
-    }
-
-    // set checking to true
-    db.endpoint.set_checking(url, true).await?;
-
     let is_success = db.endpoint.url_lookup(url).await?;
     let endpoint = db.endpoint.get(url).await?;
 
@@ -149,9 +140,6 @@ pub async fn check_url_status(url: &Url, bot: &Bot, db: &Arc<Db>) -> anyhow::Res
         })
         .await?;
     }
-
-    // set checking to false
-    db.endpoint.set_checking(url, false).await?;
 
     Ok(())
 }
