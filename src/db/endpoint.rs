@@ -1,8 +1,8 @@
 use chrono::NaiveDateTime;
 use reqwest::StatusCode;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
-use super::{url::Url, Conn};
+use super::{url::Url, Connection};
 
 const DEFAULT_TIMEOUT: u64 = 10;
 
@@ -19,12 +19,12 @@ pub struct Endpoint {
 
 #[derive(Debug)]
 pub struct EndpointModel {
-    pool: Arc<Conn>,
+    pool: Connection,
     client: reqwest::Client,
 }
 
 impl EndpointModel {
-    pub async fn new(pool: Arc<Conn>, urls: &Vec<Url>) -> anyhow::Result<Self> {
+    pub async fn new(pool: Connection, urls: &Vec<Url>) -> anyhow::Result<Self> {
         let timeout = std::env::var("TIMEOUT")
             .unwrap_or(DEFAULT_TIMEOUT.to_string())
             .parse::<u64>()?;
@@ -37,7 +37,7 @@ impl EndpointModel {
             let url = url.as_str();
 
             let row = sqlx::query!("SELECT COUNT(*) as count FROM endpoint WHERE url = ?", url)
-                .fetch_one(&*pool)
+                .fetch_one(&pool)
                 .await?;
 
             let exists = row.count > 0;
@@ -50,7 +50,7 @@ impl EndpointModel {
                 "INSERT INTO endpoint (url, status, uptime_at) VALUES (?, 'PENDING', NULL)",
                 url
             )
-            .execute(&*pool)
+            .execute(&pool)
             .await?;
         }
 
@@ -59,7 +59,7 @@ impl EndpointModel {
 
     pub async fn get_all(&self) -> anyhow::Result<Vec<Endpoint>> {
         let endpoints = sqlx::query_as!(Endpoint, "SELECT * FROM endpoint")
-            .fetch_all(&*self.pool)
+            .fetch_all(&self.pool)
             .await?;
 
         Ok(endpoints)
@@ -67,7 +67,7 @@ impl EndpointModel {
 
     pub async fn get(&self, url: &str) -> anyhow::Result<Endpoint> {
         let endpoint = sqlx::query_as!(Endpoint, "SELECT * FROM endpoint WHERE url = ?", url)
-            .fetch_one(&*self.pool)
+            .fetch_one(&self.pool)
             .await?;
 
         Ok(endpoint)
@@ -75,7 +75,7 @@ impl EndpointModel {
 
     pub async fn get_max_latency(&self, url: &str) -> anyhow::Result<Option<i64>> {
         let latency = sqlx::query!("SELECT max_latency FROM endpoint WHERE url = ?", url)
-            .fetch_one(&*self.pool)
+            .fetch_one(&self.pool)
             .await?;
 
         Ok(latency.max_latency)
@@ -90,7 +90,7 @@ impl EndpointModel {
                 latency,
                 url
             )
-            .execute(&*self.pool)
+            .execute(&self.pool)
             .await?;
         }
 
@@ -99,7 +99,7 @@ impl EndpointModel {
 
     pub async fn reset_max_latency(&self, url: &str) -> anyhow::Result<()> {
         sqlx::query!("UPDATE endpoint SET max_latency = NULL WHERE url = ?", url)
-            .execute(&*self.pool)
+            .execute(&self.pool)
             .await?;
 
         Ok(())
@@ -115,18 +115,15 @@ impl EndpointModel {
         self.relative_max_latency_update(url.as_str(), latency)
             .await?;
 
-        match res {
-            Err(_) => Ok(false),
-            Ok(res) => {
-                let status = res.status();
+        if let Ok(res) = res {
+            let status = res.status();
 
-                if status.is_success() || status == StatusCode::TOO_MANY_REQUESTS {
-                    return Ok(true);
-                }
-
-                Ok(false)
+            if status.is_success() || status == StatusCode::TOO_MANY_REQUESTS {
+                return Ok(true);
             }
-        }
+        };
+
+        Ok(false)
     }
 }
 

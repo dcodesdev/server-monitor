@@ -1,8 +1,8 @@
 use sqlx::SqlitePool;
 
-use super::Conn;
+use super::Connection;
 
-pub async fn connect(verbose: bool) -> anyhow::Result<Conn> {
+pub async fn connect(verbose: bool) -> anyhow::Result<Connection> {
     let db_url = "sqlite:db/db.sqlite";
 
     let pool = SqlitePool::connect(&db_url).await?;
@@ -26,7 +26,7 @@ pub fn create_db_if_not_exists() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn migrate(pool: &Conn, verbose: bool) -> anyhow::Result<()> {
+pub async fn migrate(pool: &Connection, verbose: bool) -> anyhow::Result<()> {
     if verbose {
         println!("Running the migrations...");
     }
