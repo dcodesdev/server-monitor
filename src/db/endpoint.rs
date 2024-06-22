@@ -21,7 +21,7 @@ pub struct Endpoint {
 pub struct EndpointModel {
     pool: Connection,
     client: reqwest::Client,
-    retries: u8,
+    tries: u8,
 }
 
 impl EndpointModel {
@@ -55,10 +55,18 @@ impl EndpointModel {
             .await?;
         }
 
+        let tries = std::env::var("TRIES")
+            .unwrap_or("3".to_string())
+            .parse::<u8>()?;
+
+        if tries < 1 {
+            panic!("TRIES must be greater than 0");
+        }
+
         Ok(Self {
             pool,
             client,
-            retries: 3, // default is 3
+            tries,
         })
     }
 
@@ -113,7 +121,7 @@ impl EndpointModel {
     /// Returns `true` if the URL is up
     /// Returns `false` if down
     pub async fn lookup(&self, url: &Url) -> anyhow::Result<bool> {
-        for _ in 0..self.retries {
+        for _ in 0..self.tries {
             let res = self.send_request(url).await?;
 
             if res {
