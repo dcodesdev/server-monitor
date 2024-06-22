@@ -21,6 +21,7 @@ pub struct Endpoint {
 pub struct EndpointModel {
     pool: Connection,
     client: reqwest::Client,
+    retries: u8,
 }
 
 impl EndpointModel {
@@ -54,7 +55,11 @@ impl EndpointModel {
             .await?;
         }
 
-        Ok(Self { pool, client })
+        Ok(Self {
+            pool,
+            client,
+            retries: 3, // default is 3
+        })
     }
 
     pub async fn get_all(&self) -> anyhow::Result<Vec<Endpoint>> {
@@ -108,6 +113,20 @@ impl EndpointModel {
     /// Returns `true` if the URL is up
     /// Returns `false` if down
     pub async fn lookup(&self, url: &Url) -> anyhow::Result<bool> {
+        for _ in 0..self.retries {
+            let res = self.send_request(url).await?;
+
+            if res {
+                return Ok(true);
+            }
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
+        Ok(false)
+    }
+
+    async fn send_request(&self, url: &Url) -> anyhow::Result<bool> {
         let start = std::time::Instant::now();
         let res = self.client.get(url.as_str()).send().await;
         let latency = start.elapsed().as_millis() as i64;
