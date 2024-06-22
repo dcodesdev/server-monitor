@@ -56,7 +56,7 @@ impl EndpointModel {
         }
 
         let tries = std::env::var("TRIES")
-            .unwrap_or("3".to_string())
+            .unwrap_or("2".to_string())
             .parse::<u8>()?;
 
         if tries < 1 {

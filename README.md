@@ -17,7 +17,7 @@ cargo build --release
 - `URLS` - Comma separated list of urls to monitor.
 - `INTERVAL` (optional) - Interval in milliseconds to check the urls.
 - `TIMEOUT` (optional) - Timeout in seconds for each request.
-- `TRIES` (optional) - Number of tries before marking the url as down (default: `3`)
+- `TRIES` (optional) - Number of tries before marking the url as down (default: `2`)
 
 Here's an example:
 
@@ -27,7 +27,7 @@ TELEGRAM_CHAT_ID=1234567890
 URLS=https://google.com,https://bing.com,https://github.com
 INTERVAL=5000
 TIMEOUT=5
-TRIES=1
+TRIES=2
 ```
 
 ## Run the program
