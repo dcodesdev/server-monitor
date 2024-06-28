@@ -61,7 +61,8 @@ async fn create_url_check_cron(url: &Url, bot: Arc<Bot>, db: Arc<Db>) -> anyhow:
         let result = check_url_status(&url, &bot, &db).await;
 
         if let Err(e) = result {
-            eprintln!("Error: {}", e);
+            let time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            eprintln!("{time} Error: {}", e);
         }
 
         tokio::time::sleep(Duration::from_millis(interval)).await;
